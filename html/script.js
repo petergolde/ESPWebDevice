@@ -23,11 +23,6 @@ $(function() {
         $('.mdiv').addClass('hidden');
         $($(this).attr('href')).removeClass('hidden');
 
-        // kick start the live stream
-        if ($(this).attr('href') == "#diag") {
-            wsEnqueue('V1');
-        }
-
         // Collapse the menu on smaller screens
         $('#navbar').removeClass('in').attr('aria-expanded', 'false');
         $('.navbar-toggle').attr('aria-expanded', 'false');
@@ -38,66 +33,7 @@ $(function() {
             $('#update').modal();
         });
 
-        // Color Picker
-        $('.color').colorPicker({
-            buildCallback: function($elm) {
-                var colorInstance = this.color;
-                var colorPicker = this;
-
-                $elm.append('<div class="cp-memory">' +
-                    '<div style="background-color: #FFFFFF";></div>' +
-                    '<div style="background-color: #FF0000";></div>' +
-                    '<div style="background-color: #00FF00";></div>' +
-                    '<div style="background-color: #0000FF";></div>').
-                on('click', '.cp-memory div', function(e) {
-                    var $this = $(this);
-
-                    if (this.className) {
-                        $this.parent().prepend($this.prev()).children().eq(0).
-                            css('background-color', '#' + colorInstance.colors.HEX);
-                    } else {
-                        colorInstance.setColor($this.css('background-color'));
-                        colorPicker.render();
-                    }
-                });
-
-                this.$colorPatch = $elm.prepend('<div class="cp-disp">').find('.cp-disp');
-            },
-
-            cssAddon:
-                '.cp-memory {margin-bottom:6px; clear:both;}' +
-                '.cp-memory div {float:left; width:25%; height:40px;' +
-                'background:rgba(0,0,0,1); text-align:center; line-height:40px;}' +
-                '.cp-disp{padding:10px; margin-bottom:6px; font-size:19px; height:40px; line-height:20px}' +
-                '.cp-xy-slider{width:200px; height:200px;}' +
-                '.cp-xy-cursor{width:16px; height:16px; border-width:2px; margin:-8px}' +
-                '.cp-z-slider{height:200px; width:40px;}' +
-                '.cp-z-cursor{border-width:8px; margin-top:-8px;}',
-
-            opacity: false,
-
-            renderCallback: function($elm, toggled) {
-                var colors = this.color.colors.RND;
-                var json = {
-                        'r': colors.rgb.r,
-                        'g': colors.rgb.g,
-                        'b': colors.rgb.b
-                    };
-
-                this.$colorPatch.css({
-                    backgroundColor: '#' + colors.HEX,
-                    color: colors.RGBLuminance > 0.22 ? '#222' : '#ddd'
-                }).text(this.color.toString($elm._colorMode)); // $elm.val();
-
-                var tmode = $('#tmode option:selected').val();
-                if (typeof effectInfo[tmode].wsTCode !== 'undefined') {
-                    if (effectInfo[tmode].hasColor) {
-                        wsEnqueue( effectInfo[tmode].wsTCode + JSON.stringify(json) );
-                    }
-                }
-            }
-        });
-
+        
         // Set page event feeds
         feed();
     });
@@ -555,7 +491,7 @@ function getConfig(data) {
     var config = JSON.parse(data);
 
     // Device and Network config
-    $('#title').text('ESPS - ' + config.device.id);
+    $('#title').text('ESP - ' + config.device.id);
     $('#name').text(config.device.id);
     $('#devid').val(config.device.id);
     $('#ssid').val(config.network.ssid);
@@ -801,44 +737,10 @@ function submitWiFi() {
 }
 
 function submitConfig() {
-    var channels = parseInt($('#s_count').val());
-    if (mode == 'pixel')
-        channels = parseInt($('#p_count').val()) * 3;
-
     var json = {
             'device': {
                 'id': $('#devid').val()
             },
-            'mqtt': {
-                'enabled': $('#mqtt').prop('checked'),
-                'ip': $('#mqtt_ip').val(),
-                'port': $('#mqtt_port').val(),
-                'user': $('#mqtt_user').val(),
-                'password': $('#mqtt_password').val(),
-                'topic': $('#mqtt_topic').val(),
-                'haprefix': $('#mqtt_haprefix').val(),
-                'clean': $('#mqtt_clean').prop('checked'),
-                'hadisco': $('#mqtt_hadisco').prop('checked')
-            },
-            'e131': {
-                'universe': parseInt($('#universe').val()),
-                'universe_limit': parseInt($('#universe_limit').val()),
-                'channel_start': parseInt($('#channel_start').val()),
-                'channel_count': channels,
-                'multicast': $('#multicast').prop('checked')
-            },
-            'pixel': {
-                'type': parseInt($('#p_type').val()),
-                'color': parseInt($('#p_color').val()),
-                'groupSize': parseInt($('#p_groupSize').val()),
-                'zigSize': parseInt($('#p_zigSize').val()),
-                'gammaVal': parseFloat($('#p_gammaVal').val()),
-                'briteVal': parseFloat($('#p_briteVal').val())
-            },
-            'serial': {
-                'type': parseInt($('#s_proto').val()),
-                'baudrate': parseInt($('#s_baud').val())
-            }
     };
 
     wsEnqueue('S2' + JSON.stringify(json));

@@ -2,6 +2,7 @@
   "network": {
     "ssid": "",
     "passphrase": "",
+    "hostname": "",
     "ip": [
       192,
       168,

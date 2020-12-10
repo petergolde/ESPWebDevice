@@ -31,6 +31,8 @@ const char passphrase[] = "ENTER_PASSPHRASE_HERE";
 
 
 #include "ArduinoJson.h"
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include <Hash.h>
 #include <SPI.h>
 #include "ESPixelStick.h"
@@ -59,27 +61,14 @@ static void _u0_putc(char c){
 //
 /////////////////////////////////////////////////////////
 
-// MQTT State
-const char MQTT_SET_COMMAND_TOPIC[] = "/set";
-
-// MQTT Payloads by default (on/off)
-const char LIGHT_ON[] = "ON";
-const char LIGHT_OFF[] = "OFF";
-
 // Configuration file
 const char CONFIG_FILE[] = "/config.json";
 
 
 config_t            config;         // Current configuration
-uint32_t            *seqError;      // Sequence error tracking for each universe
-uint32_t            *seqZCPPError;  // Sequence error tracking for each universe
-uint16_t            lastZCPPConfig; // last config we saw
-uint8_t             seqZCPPTracker; // sequence number of zcpp frames
-uint16_t            uniLast = 1;    // Last Universe to listen for
 bool                reboot = false; // Reboot flag
 AsyncWebServer      web(HTTP_PORT); // Web Server
 AsyncWebSocket      ws("/ws");      // Web Socket Plugin
-uint8_t             *seqTracker;    // Current sequence numbers for each Universe */
 uint32_t            lastUpdate;     // Update timeout tracker
 WiFiEventHandler    wifiConnectHandler;     // WiFi connect handler
 WiFiEventHandler    wifiDisconnectHandler;  // WiFi disconnect handler
@@ -88,6 +77,17 @@ Ticker              idleTicker;     // Ticker for effect on idle
 IPAddress           ourLocalIP;
 IPAddress           ourSubnetMask;
 
+// Status for display on the OLED display.
+enum ConnectionStatus { CONNSTAT_CONNECTING, CONNSTAT_CONNECTED, CONNSTAT_LOCALAP, CONNSTAT_NONE};
+ConnectionStatus    connectionStatus = CONNSTAT_CONNECTING;
+String              connectionSSID;
+bool                updateOled = true;
+
+// OLED Display
+#define SCREEN_WIDTH 128   // OLED display width, in pixels
+#define SCREEN_HEIGHT 32   // OLED display height, in pixels 
+#define OLED_RESET   -1    // define SSD1306 OLED (-1 means none)
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 /////////////////////////////////////////////////////////
 //
@@ -99,6 +99,7 @@ void loadConfig();
 void initWifi();
 void initWeb();
 void updateConfig();
+
 
 // Radio config
 RF_PRE_INIT() {
@@ -112,8 +113,8 @@ void setup() {
     wifi_set_sleep_type(NONE_SLEEP_T);
 
     // Initial pin states
-    pinMode(DATA_PIN, OUTPUT);
-    digitalWrite(DATA_PIN, LOW);
+    //pinMode(DATA_PIN, OUTPUT);
+    //digitalWrite(DATA_PIN, LOW);
 
     // Setup serial log port
     LOG_PORT.begin(115200);
@@ -124,11 +125,8 @@ void setup() {
     system_set_os_print(1);
 #endif
 
-    // Set default data source to E131
-    config.ds = DataSource::E131;
-
     LOG_PORT.println("");
-    LOG_PORT.print(F("ESPixelStick v"));
+    LOG_PORT.print(F("ESP v"));
     for (uint8_t i = 0; i < strlen_P(VERSION); i++)
         LOG_PORT.print((char)(pgm_read_byte(VERSION + i)));
     LOG_PORT.print(F(" ("));
@@ -136,6 +134,15 @@ void setup() {
         LOG_PORT.print((char)(pgm_read_byte(BUILD_DATE + i)));
     LOG_PORT.println(")");
     LOG_PORT.println(ESP.getFullVersion());
+
+    // Initialise OLED display.
+    Wire.begin(4, 0);           // set I2C pins [SDA = GPIO4 (D2), SCL = GPIO0 (D3)], default clock is 100kHz
+    Wire.setClock(400000L);   // uncomment this to set I2C clock to 400kHz
+    display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3C (for the 128x32)
+ 
+    // Show initial display buffer contents on the screen --
+    // the library initializes this with an Adafruit splash screen.
+    display.display();
 
     // Enable SPIFFS
     if (!SPIFFS.begin())
@@ -167,8 +174,11 @@ void setup() {
 
     // Load configuration from SPIFFS and set Hostname
     loadConfig();
-    if (config.hostname)
+    if (config.hostname) {
+        LOG_PORT.print("Setting hostname: ");
+        LOG_PORT.println(config.hostname);
         WiFi.hostname(config.hostname);
+    }
 
 /*
 #if defined (ESPS_MODE_PIXEL)
@@ -199,24 +209,28 @@ void setup() {
     // Setup WiFi Handlers
     wifiConnectHandler = WiFi.onStationModeGotIP(onWifiConnect);
 
-    // Fallback to default SSID and passphrase if we fail to connect
+
     initWifi();
-    if (WiFi.status() != WL_CONNECTED) {
-        LOG_PORT.println(F("*** Timeout - Reverting to default SSID ***"));
-        config.ssid = ssid;
-        config.passphrase = passphrase;
-        initWifi();
-    }
+
+    // Fallback to default SSID and passphrase if we fail to connect
+//    if (WiFi.status() != WL_CONNECTED) {
+//        LOG_PORT.println(F("*** Timeout - Reverting to default SSID ***"));
+//        config.ssid = ssid;
+//        config.passphrase = passphrase;
+//        initWifi();
+//    }
 
     // If we fail again, go SoftAP or reboot
     if (WiFi.status() != WL_CONNECTED) {
         if (config.ap_fallback) {
             LOG_PORT.println(F("*** FAILED TO ASSOCIATE WITH AP, GOING SOFTAP ***"));
             WiFi.mode(WIFI_AP);
-            String ssid = "ESPixelStick " + String(config.hostname);
-            WiFi.softAP(ssid.c_str());
+            connectionSSID = config.hostname;
+            WiFi.softAP(connectionSSID.c_str());
             ourLocalIP = WiFi.softAPIP();
             ourSubnetMask = IPAddress(255,255,255,0);
+            connectionStatus = CONNSTAT_LOCALAP;
+            updateOled = true;
         } else {
             LOG_PORT.println(F("*** FAILED TO ASSOCIATE WITH AP, REBOOTING ***"));
             ESP.restart();
@@ -254,6 +268,9 @@ void initWifi() {
         if (millis() - timeout > (1000 * config.sta_timeout) ){
             LOG_PORT.println("");
             LOG_PORT.println(F("*** Failed to connect ***"));
+            connectionStatus = CONNSTAT_NONE;
+            updateOled = true;
+            displayStatusOnOled();
             break;
         }
     }
@@ -267,6 +284,10 @@ void connectWifi() {
     LOG_PORT.print(config.ssid);
     LOG_PORT.print(F(" as "));
     LOG_PORT.println(config.hostname);
+    connectionStatus = CONNSTAT_CONNECTING;
+    connectionSSID = config.ssid;
+    updateOled = true;
+    displayStatusOnOled();
 
     WiFi.begin(config.ssid.c_str(), config.passphrase.c_str());
     if (config.dhcp) {
@@ -289,7 +310,9 @@ void onWifiConnect(const WiFiEventStationModeGotIP &event) {
 
     ourLocalIP = WiFi.localIP();
     ourSubnetMask = WiFi.subnetMask();
-
+    connectionStatus = CONNSTAT_CONNECTED;
+    updateOled = true;
+    LOG_PORT.println("Updated Oled");
 
     // Setup mDNS / DNS-SD
     //TODO: Reboot or restart mdns when config.id is changed?
@@ -316,6 +339,9 @@ void onWifiConnect(const WiFiEventStationModeGotIP &event) {
 void onWiFiDisconnect(const WiFiEventStationModeDisconnected &event) {
     LOG_PORT.println(F("*** WiFi Disconnected ***"));
 
+    connectionStatus = CONNSTAT_NONE;
+    updateOled = true;
+    
     wifiTicker.once(2, connectWifi);
 }
 
@@ -509,7 +535,6 @@ void serializeConfig(String &jsonString, bool pretty, bool creds) {
     // Device
     JsonObject device = json.createNestedObject("device");
     device["id"] = config.id.c_str();
-    device["mode"] = config.devmode.toInt();
 
     // Network
     JsonObject network = json.createNestedObject("network");
@@ -564,7 +589,48 @@ void idleTimeout() {
    //idleTicker.attach(config.effect_idletimeout, idleTimeout);
 }
 
-
+void displayStatusOnOled()
+{
+    LOG_PORT.println("@1");
+    display.clearDisplay();
+    display.setTextSize(1);      // Normal 1:1 pixel scale
+    display.setTextColor(SSD1306_WHITE); // Draw white text
+    display.setCursor(0, 0);     // Start at top-left corner
+    display.cp437(true);         // Use full 256 char 'Code Page 437' font
+    LOG_PORT.println("@1");
+    
+    const char * statusText;
+    switch (connectionStatus) {
+      case CONNSTAT_NONE:
+      default:
+          statusText = "Not connected."; break;
+      case CONNSTAT_CONNECTING:
+          statusText = "Connecting..."; break;
+      case CONNSTAT_CONNECTED:
+          statusText = "Connected."; break;
+      case CONNSTAT_LOCALAP:
+          statusText = "Local WiFi AP."; break;
+    }
+    LOG_PORT.println("@2");
+    display.println(statusText);
+    LOG_PORT.println("@3");
+    
+    display.print("SSID: ");
+    LOG_PORT.println("@4");
+    display.println(connectionSSID);
+    LOG_PORT.println("@5");
+    
+    if (connectionStatus == CONNSTAT_CONNECTED || connectionStatus == CONNSTAT_LOCALAP) {
+      display.print("IP: ");
+      LOG_PORT.println("@6");
+      display.println(ourLocalIP);
+      LOG_PORT.println("@7");
+    }
+    
+    display.display();
+    LOG_PORT.println("@8");
+    
+}
 
 /////////////////////////////////////////////////////////
 //
@@ -578,6 +644,10 @@ void loop() {
         ESP.restart();
     }
 
+    if (updateOled) {
+        displayStatusOnOled();
+        updateOled = false;
+    }
 
 // workaround crash - consume incoming bytes on serial port
     if (LOG_PORT.available()) {
