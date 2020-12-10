@@ -35,13 +35,6 @@ const char BUILD_DATE[] = __DATE__;
 #include <ESPAsyncE131.h>
 #include <ArduinoJson.h>
 
-#if defined(ESPS_MODE_PIXEL)
-#include "PixelDriver.h"
-#elif defined(ESPS_MODE_SERIAL)
-#include "SerialDriver.h"
-#endif
-
-#include "EffectEngine.h"
 
 #define HTTP_PORT       80      /* Default web server port */
 #define MQTT_PORT       1883    /* Default MQTT port */
@@ -105,50 +98,9 @@ typedef struct {
     uint32_t    sta_timeout;    /* Timeout when connection as client (station) */
     uint32_t    ap_timeout;     /* How long to wait in AP mode with no connection before rebooting */
 
-    /* Effects */
-    String effect_name;
-    CRGB effect_color;
-    float effect_brightness;
-    uint16_t effect_speed;	/* 1..10 for web UI and MQTT */
-    bool effect_reverse;
-    bool effect_mirror;
-    bool effect_allleds;
-    bool effect_startenabled;
-    bool effect_idleenabled;
-    uint16_t effect_idletimeout;
 
 
-    /* MQTT */
-    bool        mqtt;           /* Use MQTT? */
-    String      mqtt_ip = " ";
-    uint16_t    mqtt_port;
-    String      mqtt_user = " ";
-    String      mqtt_password = " ";
-    String      mqtt_topic;
-    bool        mqtt_clean;
-    bool        mqtt_hadisco;
-    String      mqtt_haprefix;
 
-    /* E131 */
-    uint16_t    universe;       /* Universe to listen for */
-    uint16_t    universe_limit; /* Universe boundary limit */
-    uint16_t    channel_start;  /* Channel to start listening at - 1 based */
-    uint16_t    channel_count;  /* Number of channels */
-    bool        multicast;      /* Enable multicast listener */
-
-#if defined(ESPS_MODE_PIXEL)
-    /* Pixels */
-    PixelType   pixel_type;     /* Pixel type */
-    PixelColor  pixel_color;    /* Pixel color order */
-    uint16_t    zigSize;	    /* Zigsize count - 0 = no zigzag */
-    uint16_t    groupSize;      /* Group size - 1 = no grouping */
-    float       gammaVal;       /* gamma value to use */
-    float       briteVal;       /* brightness lto use */
-#elif defined(ESPS_MODE_SERIAL)
-    /* Serial */
-    SerialType  serial_type;    /* Serial type */
-    BaudRate    baudrate;       /* Baudrate */
-#endif
 } config_t;
 
 // Forward Declarations
