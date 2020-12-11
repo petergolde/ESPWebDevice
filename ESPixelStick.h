@@ -24,7 +24,6 @@ const char VERSION[] = "3.2";
 const char BUILD_DATE[] = __DATE__;
 
 // Mode configuration moved to Mode.h to ease things with Travis
-#include "Mode.h"
 #include <ESP8266WiFi.h>
 #include <Ticker.h>
 #include <ESP8266mDNS.h>

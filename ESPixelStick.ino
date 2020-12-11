@@ -17,18 +17,6 @@
 *
 */
 
-/*****************************************/
-/*        BEGIN - Configuration          */
-/*****************************************/
-
-/* Fallback configuration if config.json is empty or fails */
-const char ssid[] = "ENTER_SSID_HERE";
-const char passphrase[] = "ENTER_PASSPHRASE_HERE";
-
-/*****************************************/
-/*         END - Configuration           */
-/*****************************************/
-
 
 #include "ArduinoJson.h"
 #include <Adafruit_GFX.h>
@@ -37,12 +25,8 @@ const char passphrase[] = "ENTER_PASSPHRASE_HERE";
 #include <SPI.h>
 #include "ESPixelStick.h"
 #include "EFUpdate.h"
-#include "wshandler.h"
 
 
-extern "C" {
-#include <user_interface.h>
-}
 
 // Debugging support
 #if defined(DEBUG)
@@ -69,11 +53,9 @@ config_t            config;         // Current configuration
 bool                reboot = false; // Reboot flag
 AsyncWebServer      web(HTTP_PORT); // Web Server
 AsyncWebSocket      ws("/ws");      // Web Socket Plugin
-uint32_t            lastUpdate;     // Update timeout tracker
 WiFiEventHandler    wifiConnectHandler;     // WiFi connect handler
 WiFiEventHandler    wifiDisconnectHandler;  // WiFi disconnect handler
 Ticker              wifiTicker;     // Ticker to handle WiFi
-Ticker              idleTicker;     // Ticker for effect on idle
 IPAddress           ourLocalIP;
 IPAddress           ourSubnetMask;
 
@@ -82,6 +64,11 @@ enum ConnectionStatus { CONNSTAT_CONNECTING, CONNSTAT_CONNECTED, CONNSTAT_LOCALA
 ConnectionStatus    connectionStatus = CONNSTAT_CONNECTING;
 String              connectionSSID;
 bool                updateOled = true;
+
+// Firmware update.
+EFUpdate efupdate;
+uint8_t * WSframetemp;
+uint8_t * confuploadtemp;
 
 // OLED Display
 #define SCREEN_WIDTH 128   // OLED display width, in pixels
@@ -179,32 +166,6 @@ void setup() {
         LOG_PORT.println(config.hostname);
         WiFi.hostname(config.hostname);
     }
-
-/*
-#if defined (ESPS_MODE_PIXEL)
-    pixels.setPin(DATA_PIN);
-    updateConfig();
-
-    // Do one effects cycle as early as possible
-    if (config.ds == DataSource::WEB) {
-        effects.run();
-    }
-    // set the effect idle timer
-    idleTicker.attach(config.effect_idletimeout, idleTimeout);
-
-    pixels.show();
-#else
-    updateConfig();
-    // Do one effects cycle as early as possible
-    if (config.ds == DataSource::WEB) {
-        effects.run();
-    }
-    // set the effect idle timer
-    idleTicker.attach(config.effect_idletimeout, idleTimeout);
-
-    serial.show();
-#endif
-*/
 
     // Setup WiFi Handlers
     wifiConnectHandler = WiFi.onStationModeGotIP(onWifiConnect);
@@ -320,17 +281,6 @@ void onWifiConnect(const WiFiEventStationModeGotIP &event) {
     MDNS.setInstanceName(String(config.id + " (" + chipId + ")").c_str());
     if (MDNS.begin(config.hostname.c_str())) {
         MDNS.addService("http", "tcp", HTTP_PORT);
-        /*
-        MDNS.addService("zcpp", "udp", ZCPP_PORT);
-        MDNS.addService("ddp", "udp", DDP_PORT);
-        MDNS.addService("e131", "udp", E131_DEFAULT_PORT);
-        MDNS.addServiceTxt("e131", "udp", "TxtVers", String(RDMNET_DNSSD_TXTVERS));
-        MDNS.addServiceTxt("e131", "udp", "ConfScope", RDMNET_DEFAULT_SCOPE);
-        MDNS.addServiceTxt("e131", "udp", "E133Vers", String(RDMNET_DNSSD_E133VERS));
-        MDNS.addServiceTxt("e131", "udp", "CID", chipId);
-        MDNS.addServiceTxt("e131", "udp", "Model", "ESPixelStick");
-        MDNS.addServiceTxt("e131", "udp", "Manuf", "Forkineye");
-        */
     } else {
         LOG_PORT.println(F("*** Error setting up mDNS responder ***"));
     }
@@ -357,9 +307,6 @@ void onWiFiDisconnect(const WiFiEventStationModeDisconnected &event) {
 void initWeb() {
     // Handle OTA update from asynchronous callbacks
     Update.runAsync(true);
-
-    // Add header for SVG plot support?
-    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
 
     // Setup WebSockets
     ws.onEvent(wsEvent);
@@ -414,13 +361,11 @@ void initWeb() {
 // Configuration Validations
 void validateConfig() {
 
-
 }
 
 void updateConfig() {
     // Validate first
     validateConfig();
-
 }
 
 // De-Serialize Network config
@@ -428,14 +373,9 @@ void dsNetworkConfig(const JsonObject &json) {
     if (json.containsKey("network")) {
         JsonObject networkJson = json["network"];
 
-        // Fallback to embedded ssid and passphrase if null in config
         config.ssid = networkJson["ssid"].as<String>();
-        if (!config.ssid.length())
-            config.ssid = ssid;
-
         config.passphrase = networkJson["passphrase"].as<String>();
         if (!config.passphrase.length())
-            config.passphrase = passphrase;
 
         // Network
         for (int i = 0; i < 4; i++) {
@@ -468,7 +408,6 @@ void dsNetworkConfig(const JsonObject &json) {
 }
 
 
-
 // De-serialize Device Config
 void dsDeviceConfig(const JsonObject &json) {
     // Device
@@ -479,7 +418,6 @@ void dsDeviceConfig(const JsonObject &json) {
     {
         LOG_PORT.println("No device settings found.");
     }
-
 }
 
 // Load configugration JSON file
@@ -491,8 +429,8 @@ void loadConfig() {
     File file = SPIFFS.open(CONFIG_FILE, "r");
     if (!file) {
         LOG_PORT.println(F("- No configuration file found."));
-        config.ssid = ssid;
-        config.passphrase = passphrase;
+        config.ssid = "";
+        config.passphrase = "";
         config.hostname = "esps-" + String(ESP.getChipId(), HEX);
         config.ap_fallback = true;
         config.id = "No Config Found";
@@ -524,7 +462,6 @@ void loadConfig() {
 
     // Validate it
     validateConfig();
-
 }
 
 // Serialize the current config into a JSON string
@@ -556,8 +493,6 @@ void serializeConfig(String &jsonString, bool pretty, bool creds) {
     network["ap_fallback"] = config.ap_fallback;
     network["ap_timeout"] = config.ap_timeout;
 
-
-
     if (pretty)
         serializeJsonPretty(json, jsonString);
     else
@@ -585,19 +520,14 @@ void saveConfig() {
     }
 }
 
-void idleTimeout() {
-   //idleTicker.attach(config.effect_idletimeout, idleTimeout);
-}
 
 void displayStatusOnOled()
 {
-    LOG_PORT.println("@1");
     display.clearDisplay();
     display.setTextSize(1);      // Normal 1:1 pixel scale
     display.setTextColor(SSD1306_WHITE); // Draw white text
     display.setCursor(0, 0);     // Start at top-left corner
     display.cp437(true);         // Use full 256 char 'Code Page 437' font
-    LOG_PORT.println("@1");
     
     const char * statusText;
     switch (connectionStatus) {
@@ -611,26 +541,240 @@ void displayStatusOnOled()
       case CONNSTAT_LOCALAP:
           statusText = "Local WiFi AP."; break;
     }
-    LOG_PORT.println("@2");
     display.println(statusText);
-    LOG_PORT.println("@3");
     
     display.print("SSID: ");
-    LOG_PORT.println("@4");
     display.println(connectionSSID);
-    LOG_PORT.println("@5");
     
     if (connectionStatus == CONNSTAT_CONNECTED || connectionStatus == CONNSTAT_LOCALAP) {
       display.print("IP: ");
-      LOG_PORT.println("@6");
       display.println(ourLocalIP);
-      LOG_PORT.println("@7");
     }
     
     display.display();
-    LOG_PORT.println("@8");
-    
 }
+
+/////////////////////////////////////////////////////////
+// Web socket handlers
+/////////////////////////////////////////////////////////
+/*
+  Packet Commands
+    G1 - Get Config
+    G2 - Get Config Status
+
+    S1 - Set Network Config
+    S2 - Set Device Config
+
+    XJ - Get RSSI,heap,uptime, e131 stats in json
+
+    X6 - Reboot
+*/
+
+
+// Handle request that start with 'X'
+void procX(uint8_t *data, AsyncWebSocketClient *client) {
+    switch (data[1]) {
+        case 'J': {
+
+            DynamicJsonDocument json(1024);
+
+            // system statistics
+            JsonObject system = json.createNestedObject("system");
+            system["rssi"] = (String)WiFi.RSSI();
+            system["freeheap"] = (String)ESP.getFreeHeap();
+            system["uptime"] = (String)millis();
+
+            String response;
+            serializeJson(json, response);
+            client->text("XJ" + response);
+            break;
+        }
+
+        case '6':  // Init 6 baby, reboot!
+            reboot = true;
+    }
+}
+
+// Handle requests that start with 'G'
+void procG(uint8_t *data, AsyncWebSocketClient *client) {
+    switch (data[1]) {
+        case '1': {
+            String response;
+            serializeConfig(response, false, true);
+            client->text("G1" + response);
+            break;
+        }
+
+        case '2': {
+            // Create buffer and root object
+            DynamicJsonDocument json(1024);
+
+            json["ssid"] = (String)WiFi.SSID();
+            json["hostname"] = (String)WiFi.hostname();
+            json["ip"] = WiFi.localIP().toString();
+            json["mac"] = WiFi.macAddress();
+            json["version"] = (String)VERSION;
+            json["built"] = (String)BUILD_DATE;
+            json["flashchipid"] = String(ESP.getFlashChipId(), HEX);
+            json["usedflashsize"] = (String)ESP.getFlashChipSize();
+            json["realflashsize"] = (String)ESP.getFlashChipRealSize();
+            json["freeheap"] = (String)ESP.getFreeHeap();
+
+            String response;
+            serializeJson(json, response);
+            client->text("G2" + response);
+            break;
+        }
+
+    }
+}
+
+// Handle requests that start with 'S'
+void procS(uint8_t *data, AsyncWebSocketClient *client) {
+
+    DynamicJsonDocument json(1024);
+    DeserializationError error = deserializeJson(json, reinterpret_cast<char*>(data + 2));
+
+    if (error) {
+        LOG_PORT.println(F("*** procS(): Parse Error ***"));
+        LOG_PORT.println(reinterpret_cast<char*>(data));
+        return;
+    }
+
+    bool reboot = false;
+    switch (data[1]) {
+        case '1':   // Set Network Config
+            dsNetworkConfig(json.as<JsonObject>());
+            saveConfig();
+            client->text("S1");
+            break;
+        case '2':   // Set Device Config
+
+            dsDeviceConfig(json.as<JsonObject>());
+            saveConfig();
+
+            if (reboot)
+                client->text("S1");
+            else
+                client->text("S2");
+            break;
+    }
+}
+
+
+void handle_fw_upload(AsyncWebServerRequest *request, String filename,
+        size_t index, uint8_t *data, size_t len, bool final) {
+    if (!index) {
+        WiFiUDP::stopAll();
+        LOG_PORT.print(F("* Upload Started: "));
+        LOG_PORT.println(filename.c_str());
+        efupdate.begin();
+    }
+
+    if (!efupdate.process(data, len)) {
+        LOG_PORT.print(F("*** UPDATE ERROR: "));
+        LOG_PORT.println(String(efupdate.getError()));
+    }
+
+    if (efupdate.hasError())
+        request->send(200, "text/plain", "Update Error: " +
+                String(efupdate.getError()));
+
+    if (final) {
+        LOG_PORT.println(F("* Upload Finished."));
+        efupdate.end();
+        SPIFFS.begin();
+        saveConfig();
+        reboot = true;
+    }
+}
+
+void handle_config_upload(AsyncWebServerRequest *request, String filename,
+        size_t index, uint8_t *data, size_t len, bool final) {
+    static File file;
+    if (!index) {
+        WiFiUDP::stopAll();
+        LOG_PORT.print(F("* Config Upload Started: "));
+        LOG_PORT.println(filename.c_str());
+
+        if (confuploadtemp) {
+          free (confuploadtemp);
+          confuploadtemp = nullptr;
+        }
+        confuploadtemp = (uint8_t*) malloc(CONFIG_MAX_SIZE);
+    }
+
+    LOG_PORT.printf("index %d len %d\n", index, len);
+    memcpy(confuploadtemp + index, data, len);
+    confuploadtemp[index + len] = 0;
+
+    if (final) {
+        int filesize = index+len;
+        LOG_PORT.print(F("* Config Upload Finished:"));
+        LOG_PORT.printf(" %d bytes", filesize);
+
+        DynamicJsonDocument json(1024);
+        DeserializationError error = deserializeJson(json, reinterpret_cast<char*>(confuploadtemp));
+
+        if (error) {
+            LOG_PORT.println(F("*** Parse Error ***"));
+            LOG_PORT.println(reinterpret_cast<char*>(confuploadtemp));
+            request->send(500, "text/plain", "Config Update Error." );
+        } else {
+            dsNetworkConfig(json.as<JsonObject>());
+            dsDeviceConfig(json.as<JsonObject>());
+            saveConfig();
+            request->send(200, "text/plain", "Config Update Finished: " );
+//          reboot = true;
+        }
+
+        if (confuploadtemp) {
+            free (confuploadtemp);
+            confuploadtemp = nullptr;
+        }
+    }
+}
+
+void wsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
+        AwsEventType type, void * arg, uint8_t *data, size_t len) {
+    switch (type) {
+        case WS_EVT_DATA: {
+            AwsFrameInfo *info = static_cast<AwsFrameInfo*>(arg);
+            if (info->opcode == WS_TEXT) {
+                switch (data[0]) {
+                    case 'X':
+                        procX(data, client);
+                        break;
+                    case 'G':
+                        procG(data, client);
+                        break;
+                    case 'S':
+                        procS(data, client);
+                        break;
+                }
+            } else {
+                LOG_PORT.println(F("-- binary message --"));
+            }
+            break;
+        }
+        case WS_EVT_CONNECT:
+            LOG_PORT.print(F("* WS Connect - "));
+            LOG_PORT.println(client->id());
+            break;
+        case WS_EVT_DISCONNECT:
+            LOG_PORT.print(F("* WS Disconnect - "));
+            LOG_PORT.println(client->id());
+            break;
+        case WS_EVT_PONG:
+            LOG_PORT.println(F("* WS PONG *"));
+            break;
+        case WS_EVT_ERROR:
+            LOG_PORT.println(F("** WS ERROR **"));
+            break;
+    }
+}
+
+
 
 /////////////////////////////////////////////////////////
 //
@@ -649,7 +793,7 @@ void loop() {
         updateOled = false;
     }
 
-// workaround crash - consume incoming bytes on serial port
+    // workaround crash - consume incoming bytes on serial port
     if (LOG_PORT.available()) {
         while (LOG_PORT.read() >= 0);
     }
