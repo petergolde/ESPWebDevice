@@ -17,32 +17,10 @@
 *
 */
 
-#ifndef ESPIXELSTICK_H_
-#define ESPIXELSTICK_H_
+#ifndef FRAMEWORK_H_
+#define FRAMEWORK_H_
 
-const char VERSION[] = "3.2";
-const char BUILD_DATE[] = __DATE__;
-
-// Mode configuration moved to Mode.h to ease things with Travis
 #include <ESP8266WiFi.h>
-#include <Ticker.h>
-#include <ESP8266mDNS.h>
-#include <ESPAsyncTCP.h>
-#include <ESPAsyncUDP.h>
-#include <ESPAsyncWebServer.h>
-#include <ArduinoJson.h>
-
-
-#define HTTP_PORT       80      /* Default web server port */
-#define CLIENT_TIMEOUT  15      /* In station/client mode try to connection for 15 seconds */
-#define AP_TIMEOUT      60      /* In AP mode, wait 60 seconds for a connection or reboot */
-#define REBOOT_DELAY    100     /* Delay for rebooting once reboot flag is set */
-#define LOG_PORT        Serial  /* Serial port for console logging */
-
-
-// Configuration file params
-#define CONFIG_MAX_SIZE 4096    /* Sanity limit for config file */
-
 
 // Configuration structure
 typedef struct {
@@ -63,16 +41,20 @@ typedef struct {
 
 } config_t;
 
-// Forward Declarations
-void serializeConfig(String &jsonString, bool pretty = false, bool creds = false);
-void dsNetworkConfig(const JsonObject &json);
-void dsDeviceConfig(const JsonObject &json);
-void saveConfig();
+// Status for display on the OLED display.
+enum ConnectionStatus { CONNSTAT_CONNECTING, CONNSTAT_CONNECTED, CONNSTAT_LOCALAP, CONNSTAT_NONE};
 
-void connectWifi();
-void onWifiConnect(const WiFiEventStationModeGotIP &event);
-void onWiFiDisconnect(const WiFiEventStationModeDisconnected &event);
-void idleTimeout();
+typedef struct {
+  enum ConnectionStatus status; 
+  String                ssid;
+  IPAddress             ourLocalIP;
+  IPAddress             ourSubnetMask;
+  int                   signalStrength;
+} connection_status_t;
+
+extern void updateStatus(const connection_status_t & connectionStatus);
+extern void framework_setup(bool forceAccessPoint);
+extern void framework_loop();
 
 
-#endif  // ESPIXELSTICK_H_
+#endif  // FRAMEWORK_H_

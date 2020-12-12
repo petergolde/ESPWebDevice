@@ -380,7 +380,6 @@ function getJsonStatus(data) {
 function setConfig() {
     // Get config to refresh UI and show result
     wsEnqueue("G1");
-    snackSave();
 }
 
 function submitWiFi() {
