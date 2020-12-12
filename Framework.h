@@ -28,9 +28,6 @@
 
 // Configuration structure
 typedef struct {
-    /* Device */
-    String      id;             /* Device ID */
-
     /* Network */
     String      ssid;
     String      passphrase;
@@ -56,8 +53,21 @@ typedef struct {
   int                   signalStrength;
 } connection_status_t;
 
+// Implemented by user code.
+
+// Update the status -- called when wifi status changes.
 extern void updateStatus(const connection_status_t & connectionStatus);
+
+// Save/load status data to flash memory and web interface.
+void saveState(const JsonObject & jsonObject);
+void loadState(const JsonObject & jsonObject);
+
+// Implemented by framework.
+
+// Setup the framework.
 extern AsyncWebServer * framework_setup(bool forceAccessPoint);
+
+// Called from loop.
 extern void framework_loop();
 
 

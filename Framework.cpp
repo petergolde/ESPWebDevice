@@ -294,7 +294,7 @@ void onWifiConnect(const WiFiEventStationModeGotIP &event) {
   // Setup mDNS / DNS-SD
   //TODO: Reboot or restart mdns when config.id is changed?
   String chipId = String(ESP.getChipId(), HEX);
-  MDNS.setInstanceName(String(config.id + " (" + chipId + ")").c_str());
+  MDNS.setInstanceName(String(config.hostname + " (" + chipId + ")").c_str());
   if (MDNS.begin(config.hostname.c_str())) {
     MDNS.addService("http", "tcp", HTTP_PORT);
   } else {
@@ -426,14 +426,7 @@ void dsNetworkConfig(const JsonObject &json) {
 
 // De-serialize Device Config
 void dsDeviceConfig(const JsonObject &json) {
-  // Device
-  if (json.containsKey("device")) {
-    config.id = json["device"]["id"].as<String>();
-  }
-  else
-  {
-    LOG_PORT.println("No device settings found.");
-  }
+  loadState(json);
 }
 
 // Load configugration JSON file
@@ -449,7 +442,6 @@ void loadConfig() {
     config.passphrase = "";
     config.hostname = "esps-" + String(ESP.getChipId(), HEX);
     config.ap_fallback = true;
-    config.id = "No Config Found";
     saveConfig();
   } else {
     // Parse CONFIG_FILE json
@@ -485,10 +477,6 @@ void serializeConfig(String &jsonString, bool pretty, bool creds) {
   // Create buffer and root object
   DynamicJsonDocument json(1024);
 
-  // Device
-  JsonObject device = json.createNestedObject("device");
-  device["id"] = config.id.c_str();
-
   // Network
   JsonObject network = json.createNestedObject("network");
   network["ssid"] = config.ssid.c_str();
@@ -508,6 +496,10 @@ void serializeConfig(String &jsonString, bool pretty, bool creds) {
 
   network["ap_fallback"] = config.ap_fallback;
   network["ap_timeout"] = config.ap_timeout;
+
+  // Device
+  saveState(json.as<JsonObject>());
+
 
   if (pretty)
     serializeJsonPretty(json, jsonString);

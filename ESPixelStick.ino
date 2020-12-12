@@ -10,6 +10,9 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 const int forceAccessPointPin = D5;   // Connect to ground to force access point.
 
+// State.
+String deviceName = "Default";
+
 void led_on_request(AsyncWebServerRequest * request)
 {
   digitalWrite(LED_BUILTIN, LOW);
@@ -53,6 +56,8 @@ void setup() {
 }
 
 // Update the status on the OLED display.
+// Called from the framework whenever the network status updates
+// or every 2 seconds. Always called in a place it is safe.
 void updateStatus(const connection_status_t & connectionStatus)
 {
   display.clearDisplay();
@@ -65,30 +70,47 @@ void updateStatus(const connection_status_t & connectionStatus)
   switch (connectionStatus.status) {
     case CONNSTAT_NONE:
     default:
-      statusText = "Not connected."; break;
+      statusText = "Disconnected"; break;
     case CONNSTAT_CONNECTING:
-      statusText = "Connecting..."; break;
+      statusText = "Connecting"; break;
     case CONNSTAT_CONNECTED:
-      statusText = "Connected."; break;
+      statusText = "Connected"; break;
     case CONNSTAT_LOCALAP:
-      statusText = "Local WiFi AP."; break;
+      statusText = "Local AP"; break;
   }
+  display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
+  display.print(deviceName);
+  display.setTextColor(SSD1306_WHITE, SSD1306_BLACK); // Draw regular text
+  display.print(" ");
   display.println(statusText);
 
-  display.print("SSID: ");
+  display.print("SSID:  ");
   display.println(connectionStatus.ssid);
 
   if (connectionStatus.status == CONNSTAT_CONNECTED || connectionStatus.status == CONNSTAT_LOCALAP) {
-    display.print("  IP: ");
+    display.print("IP:  ");
     display.println(connectionStatus.ourLocalIP);
   }
 
   if (connectionStatus.status == CONNSTAT_CONNECTED) {
-    display.print("Strength: ");
+    display.print("Signal:  ");
     display.println(connectionStatus.signalStrength);
   }
 
   display.display();
+}
+
+void saveState(const JsonObject & json)
+{
+  JsonObject device = json.createNestedObject("device");
+  device["id"] = deviceName.c_str();
+}
+
+void loadState(const JsonObject & json)
+{
+  if (json.containsKey("device")) {
+    deviceName = json["device"]["id"].as<String>();
+  }
 }
 
 void loop() {
