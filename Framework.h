@@ -21,6 +21,10 @@
 #define FRAMEWORK_H_
 
 #include <ESP8266WiFi.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncUDP.h>
+#include <ESPAsyncWebServer.h>
+#include <ArduinoJson.h>
 
 // Configuration structure
 typedef struct {
@@ -53,7 +57,7 @@ typedef struct {
 } connection_status_t;
 
 extern void updateStatus(const connection_status_t & connectionStatus);
-extern void framework_setup(bool forceAccessPoint);
+extern AsyncWebServer * framework_setup(bool forceAccessPoint);
 extern void framework_loop();
 
 

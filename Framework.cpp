@@ -27,11 +27,6 @@
 
 #include <Ticker.h>
 #include <ESP8266mDNS.h>
-#include <ESPAsyncTCP.h>
-#include <ESPAsyncUDP.h>
-#include <ESPAsyncWebServer.h>
-#include <ArduinoJson.h>
-
 
 
 
@@ -127,7 +122,7 @@ RF_PRE_INIT() {
   system_phy_set_max_tpw(82);         // Set max TX power
 }
 
-void framework_setup(bool forceAccessPoint) {
+AsyncWebServer * framework_setup(bool forceAccessPoint) {
   // Configure SDK params
   wifi_set_sleep_type(NONE_SLEEP_T);
 
@@ -226,6 +221,7 @@ void framework_setup(bool forceAccessPoint) {
   // Configure and start the web server
   initWeb();
 
+  return &web;
 }
 
 /////////////////////////////////////////////////////////

@@ -10,9 +10,23 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 const int forceAccessPointPin = D5;   // Connect to ground to force access point.
 
+void led_on_request(AsyncWebServerRequest * request)
+{
+  digitalWrite(LED_BUILTIN, LOW);
+  request->send(200, "text/plain", "LED is ON!");
+}
+
+void led_off_request(AsyncWebServerRequest * request)
+{
+  digitalWrite(LED_BUILTIN, HIGH);
+  request->send(200, "text/plain", "LED is OFF!");
+}
+
 void setup() {
   pinMode(forceAccessPointPin, INPUT_PULLUP);
-  
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
+
   // Initialise OLED display.
   Wire.begin(4, 0);           // set I2C pins [SDA = GPIO4 (D2), SCL = GPIO0 (D3)], default clock is 100kHz
   Wire.setClock(400000L);     // set I2C clock to 400kHz
@@ -28,7 +42,14 @@ void setup() {
   display.display();
 
   // Check pin to force access point.
-  framework_setup(digitalRead(forceAccessPointPin) == LOW);
+  AsyncWebServer * webServer = framework_setup(digitalRead(forceAccessPointPin) == LOW);
+
+  // Set up request handlers on the web interface. 
+  // See https://github.com/me-no-dev/ESPAsyncWebServer
+  if (webServer) {
+    webServer->on("/ledon", HTTP_GET, led_on_request);
+    webServer->on("/ledoff", HTTP_GET, led_off_request);
+  }
 }
 
 // Update the status on the OLED display.
@@ -67,7 +88,7 @@ void updateStatus(const connection_status_t & connectionStatus)
     display.println(connectionStatus.signalStrength);
   }
 
-  display.display();  
+  display.display();
 }
 
 void loop() {
