@@ -16,6 +16,9 @@ int    millisOn = 2000;
 int    millisOff = 2000;
 bool   blinking = true;
 
+// Was AP request at start.
+bool   startupRequestAP = false;
+
 void led_on_request(AsyncWebServerRequest * request)
 {
   digitalWrite(LED_BUILTIN, LOW);
@@ -57,7 +60,8 @@ void setup() {
   display.display();
 
   // Check pin to force access point.
-  AsyncWebServer * webServer = framework_setup(digitalRead(forceAccessPointPin) == LOW);
+  startupRequestAP = (digitalRead(forceAccessPointPin) == LOW);
+  AsyncWebServer * webServer = framework_setup(startupRequestAP);
 
   // Set up request handlers on the web interface. 
   // See https://github.com/me-no-dev/ESPAsyncWebServer
@@ -137,4 +141,10 @@ void loop() {
   delay(millisOn);
   digitalWrite(LED_BUILTIN, HIGH);
   delay(millisOff);
+
+  // If the AP switch is closed, but wasn't closed at startup, restart to 
+  // enter AP mode.
+  if (!startupRequestAP && digitalRead(forceAccessPointPin) == LOW) {
+    ESP.restart();
+  }
 }
