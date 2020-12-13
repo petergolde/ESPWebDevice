@@ -35,7 +35,14 @@ $(function() {
         feed();
     });
 
-
+    // Wifi field toggles.
+    $('#useWifi').click(function() {
+        if ($(this).is(':checked')) {
+            $('.useWifi').removeClass('hidden');
+       } else {
+            $('.useWifi').addClass('hidden');
+       }
+    });    
 
 
     // DHCP field toggles
@@ -49,6 +56,9 @@ $(function() {
 
 
     // Hostname, SSID, and Password validation
+    $('#useWifi').change(function () {
+        wifiValidation();
+    });
     $('#hostname').keyup(function() {
         wifiValidation();
     });
@@ -87,72 +97,75 @@ $(function() {
 
 function wifiValidation() {
     var WifiSaveDisabled = false;
-    var re = /^([a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9\-.]*[a-zA-Z0-9.])$/;
-    if (re.test($('#hostname').val()) && $('#hostname').val().length <= 255) {
-        $('#fg_hostname').removeClass('has-error');
-        $('#fg_hostname').addClass('has-success');
-    } else {
-        $('#fg_hostname').removeClass('has-success');
-        $('#fg_hostname').addClass('has-error');
-        WifiSaveDisabled = true;
-    }
-    if ($('#staTimeout').val() >= 5) {
-        $('#fg_staTimeout').removeClass('has-error');
-        $('#fg_staTimeout').addClass('has-success');
-    } else {
-        $('#fg_staTimeout').removeClass('has-success');
-        $('#fg_staTimeout').addClass('has-error');
-        WifiSaveDisabled = true;
-    }
-    if ($('#ssid').val().length <= 32) {
-        $('#fg_ssid').removeClass('has-error');
-        $('#fg_ssid').addClass('has-success');
-    } else {
-        $('#fg_ssid').removeClass('has-success');
-        $('#fg_ssid').addClass('has-error');
-        WifiSaveDisabled = true;
-    }
-    if ($('#password').val().length <= 64) {
-        $('#fg_password').removeClass('has-error');
-        $('#fg_password').addClass('has-success');
-    } else {
-        $('#fg_password').removeClass('has-success');
-        $('#fg_password').addClass('has-error');
-        WifiSaveDisabled = true;
-    }
-    if ($('#dhcp').prop('checked') === false) {
-        var iptest = new RegExp(''
-        + /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\./.source
-        + /(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\./.source
-        + /(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\./.source
-        + /(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.source
-        );
+    if ($('#useWifi').prop('checked') === true) {
+        var re = /^([a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9\-.]*[a-zA-Z0-9.])$/;
+        if (re.test($('#hostname').val()) && $('#hostname').val().length <= 255) {
+            $('#fg_hostname').removeClass('has-error');
+            $('#fg_hostname').addClass('has-success');
+        } else {
+            $('#fg_hostname').removeClass('has-success');
+            $('#fg_hostname').addClass('has-error');
+            WifiSaveDisabled = true;
+        }
+        if ($('#staTimeout').val() >= 5) {
+            $('#fg_staTimeout').removeClass('has-error');
+            $('#fg_staTimeout').addClass('has-success');
+        } else {
+            $('#fg_staTimeout').removeClass('has-success');
+            $('#fg_staTimeout').addClass('has-error');
+            WifiSaveDisabled = true;
+        }
+        if ($('#ssid').val().length <= 32) {
+            $('#fg_ssid').removeClass('has-error');
+            $('#fg_ssid').addClass('has-success');
+        } else {
+            $('#fg_ssid').removeClass('has-success');
+            $('#fg_ssid').addClass('has-error');
+            WifiSaveDisabled = true;
+        }
+        if ($('#password').val().length <= 64) {
+            $('#fg_password').removeClass('has-error');
+            $('#fg_password').addClass('has-success');
+        } else {
+            $('#fg_password').removeClass('has-success');
+            $('#fg_password').addClass('has-error');
+            WifiSaveDisabled = true;
+        }
+        if ($('#dhcp').prop('checked') === false) {
+            var iptest = new RegExp(''
+            + /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\./.source
+            + /(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\./.source
+            + /(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\./.source
+            + /(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.source
+            );
 
-        if (iptest.test($('#ip').val())) {
-            $('#fg_ip').removeClass('has-error');
-            $('#fg_ip').addClass('has-success');
-        } else {
-            $('#fg_ip').removeClass('has-success');
-            $('#fg_ip').addClass('has-error');
-            WifiSaveDisabled = true;
-        }
-        if (iptest.test($('#netmask').val())) {
-            $('#fg_netmask').removeClass('has-error');
-            $('#fg_netmask').addClass('has-success');
-        } else {
-            $('#fg_netmask').removeClass('has-success');
-            $('#fg_netmask').addClass('has-error');
-            WifiSaveDisabled = true;
-        }
-        if (iptest.test($('#gateway').val())) {
-            $('#fg_gateway').removeClass('has-error');
-            $('#fg_gateway').addClass('has-success');
-        } else {
-            $('#fg_gateway').removeClass('has-success');
-            $('#fg_gateway').addClass('has-error');
-            WifiSaveDisabled = true;
+            if (iptest.test($('#ip').val())) {
+                $('#fg_ip').removeClass('has-error');
+                $('#fg_ip').addClass('has-success');
+            } else {
+                $('#fg_ip').removeClass('has-success');
+                $('#fg_ip').addClass('has-error');
+                WifiSaveDisabled = true;
+            }
+            if (iptest.test($('#netmask').val())) {
+                $('#fg_netmask').removeClass('has-error');
+                $('#fg_netmask').addClass('has-success');
+            } else {
+                $('#fg_netmask').removeClass('has-success');
+                $('#fg_netmask').addClass('has-error');
+                WifiSaveDisabled = true;
+            }
+            if (iptest.test($('#gateway').val())) {
+                $('#fg_gateway').removeClass('has-error');
+                $('#fg_gateway').addClass('has-success');
+            } else {
+                $('#fg_gateway').removeClass('has-success');
+                $('#fg_gateway').addClass('has-error');
+                WifiSaveDisabled = true;
+            }
         }
     }
+
     $('#btn_wifi').prop('disabled', WifiSaveDisabled);
 }
 
@@ -301,6 +314,14 @@ function getConfig(data) {
     $('#title').text('ESP - ' + config.device.id);
     $('#name').text(config.device.id);
     $('#devid').val(config.device.id);
+    $('#millisOn').val(config.device.millisOn);
+    $('#millisOff').val(config.device.millisOff);
+    $('#useWifi').prop('checked', config.network.useWifi);
+    if (config.network.useWifi) {
+        $('.useWifi').removeClass('hidden');
+    } else {
+        $('.useWifi').addClass('hidden');
+    }
     $('#ssid').val(config.network.ssid);
     $('#password').val(config.network.passphrase);
     $('#hostname').val(config.network.hostname);
@@ -389,6 +410,7 @@ function submitWiFi() {
 
     var json = {
             'network': {
+                'useWifi': $('#useWifi').prop('checked'),
                 'ssid': $('#ssid').val(),
                 'passphrase': $('#password').val(),
                 'hostname': $('#hostname').val(),
@@ -406,7 +428,9 @@ function submitWiFi() {
 function submitConfig() {
     var json = {
             'device': {
-                'id': $('#devid').val()
+                'id': $('#devid').val(),
+                'millisOn': parseInt($('#millisOn').val()),
+                'millisOff': parseInt($('#millisOff').val())
             },
     };
 

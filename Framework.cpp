@@ -190,38 +190,49 @@ AsyncWebServer * framework_setup(bool forceAccessPoint) {
   // Setup WiFi Handlers
   wifiConnectHandler = WiFi.onStationModeGotIP(onWifiConnect);
 
-  if (!forceAccessPoint) {
-    initWifi();
+  if (!config.useWifi && !forceAccessPoint) {
+    LOG_PORT.println(F("WiFi disabled."));
+    WiFi.mode(WIFI_OFF);
   }
-
-  // If we fail, go SoftAP or reboot
-  if (WiFi.status() != WL_CONNECTED) {
-    if (forceAccessPoint || config.ap_fallback) {
-      LOG_PORT.println(F("*** FAILED TO ASSOCIATE WITH AP, GOING SOFTAP ***"));
-      WiFi.mode(WIFI_AP);
-      connectionStatus.ssid = config.hostname;
-      WiFi.softAP(connectionStatus.ssid.c_str());
-      connectionStatus.ourLocalIP = WiFi.softAPIP();
-      connectionStatus.ourSubnetMask = IPAddress(255, 255, 255, 0);
-      connectionStatus.status = CONNSTAT_LOCALAP;
-      updateDisplay = true;
-    } else {
-      LOG_PORT.println(F("*** FAILED TO ASSOCIATE WITH AP, REBOOTING ***"));
-      ESP.restart();
+  else {
+    if (!forceAccessPoint && config.useWifi) {
+      initWifi();
     }
+  
+    // If we fail, go SoftAP or reboot
+    if (WiFi.status() != WL_CONNECTED) {
+      if (forceAccessPoint || (config.useWifi && config.ap_fallback)) {
+        LOG_PORT.println(F("*** FAILED TO ASSOCIATE WITH AP, GOING SOFTAP ***"));
+        WiFi.mode(WIFI_AP);
+        connectionStatus.ssid = config.hostname;
+        WiFi.softAP(connectionStatus.ssid.c_str());
+        connectionStatus.ourLocalIP = WiFi.softAPIP();
+        connectionStatus.ourSubnetMask = IPAddress(255, 255, 255, 0);
+        connectionStatus.status = CONNSTAT_LOCALAP;
+        updateDisplay = true;
+      } else if (config.useWifi) {
+        LOG_PORT.println(F("*** FAILED TO ASSOCIATE WITH AP, REBOOTING ***"));
+        ESP.restart();
+      }
+    }
+  
+    wifiDisconnectHandler = WiFi.onStationModeDisconnected(onWiFiDisconnect);
+  
+    LOG_PORT.print("IP : ");
+    LOG_PORT.println(connectionStatus.ourLocalIP);
+    LOG_PORT.print("Subnet mask : ");
+    LOG_PORT.println(connectionStatus.ourSubnetMask);
+  }
+  
+  // Configure and start the web server
+  if (connectionStatus.status == CONNSTAT_CONNECTED || connectionStatus.status == CONNSTAT_LOCALAP) {
+    initWeb();
+    return &web;
+  }
+  else {
+    return NULL;
   }
 
-  wifiDisconnectHandler = WiFi.onStationModeDisconnected(onWiFiDisconnect);
-
-  LOG_PORT.print("IP : ");
-  LOG_PORT.println(connectionStatus.ourLocalIP);
-  LOG_PORT.print("Subnet mask : ");
-  LOG_PORT.println(connectionStatus.ourSubnetMask);
-
-  // Configure and start the web server
-  initWeb();
-
-  return &web;
 }
 
 /////////////////////////////////////////////////////////
@@ -237,7 +248,7 @@ void initWifi() {
 
   if (config.ssid.length() == 0)
     return;
-    
+
   connectWifi();
   uint32_t timeout = millis();
   while (WiFi.status() != WL_CONNECTED) {
@@ -405,6 +416,7 @@ void dsNetworkConfig(const JsonObject &json) {
       config.sta_timeout = 5;
     }
 
+    config.useWifi = networkJson["useWifi"];
     config.ap_fallback = networkJson["ap_fallback"];
     config.ap_timeout = networkJson["ap_timeout"] | AP_TIMEOUT;
     if (config.ap_timeout < 15) {
@@ -442,6 +454,7 @@ void loadConfig() {
     config.passphrase = "";
     config.hostname = "esps-" + String(ESP.getChipId(), HEX);
     config.ap_fallback = true;
+    config.useWifi = true;
     saveConfig();
   } else {
     // Parse CONFIG_FILE json
@@ -479,6 +492,7 @@ void serializeConfig(String &jsonString, bool pretty, bool creds) {
 
   // Network
   JsonObject network = json.createNestedObject("network");
+  network["useWifi"] = config.useWifi;
   network["ssid"] = config.ssid.c_str();
   if (creds)
     network["passphrase"] = config.passphrase.c_str();
@@ -531,19 +545,19 @@ void saveConfig() {
 
 void displayStatus()
 {
-    if (connectionStatus.status == CONNSTAT_CONNECTED) {
-      int rssi = WiFi.RSSI();
-      connectionStatus.signalStrength = 2 * (rssi + 100);
-      if (rssi <= -100)
-        connectionStatus.signalStrength = 0;
-      else if (rssi >= -50)
-        connectionStatus.signalStrength = 100;
-    }
-    else {
+  if (connectionStatus.status == CONNSTAT_CONNECTED) {
+    int rssi = WiFi.RSSI();
+    connectionStatus.signalStrength = 2 * (rssi + 100);
+    if (rssi <= -100)
       connectionStatus.signalStrength = 0;
-    }
+    else if (rssi >= -50)
+      connectionStatus.signalStrength = 100;
+  }
+  else {
+    connectionStatus.signalStrength = 0;
+  }
 
-    updateStatus(connectionStatus);
+  updateStatus(connectionStatus);
 }
 
 /////////////////////////////////////////////////////////

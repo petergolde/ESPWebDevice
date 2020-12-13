@@ -1,7 +1,8 @@
 {
   "network": {
-    "ssid": "",
-    "passphrase": "",
+    "useWifi": true,
+    "ssid": "golde",
+    "passphrase": "ostrich!",
     "hostname": "",
     "ip": [
       192,
@@ -26,25 +27,10 @@
   },
 
   "device": {
-    "id": "ESPixelStick"
-  },
-
-  "e131": {
-    "universe": 1,
-    "universe_limit": 512,
-    "channel_start": 1,
-    "channel_count": 512,
-    "multicast": false
-  },
-
-  "pixel": {
-    "type": 0,
-    "color": 0,
-    "gamma": true
-  },
-
-  "serial": {
-    "type": 0,
-    "baudrate": 57600
+    "id": "MyPillow",
+    "millisOn": 2000,
+    "millisOff": 1500
   }
+
+
 }

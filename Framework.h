@@ -29,6 +29,7 @@
 // Configuration structure
 typedef struct {
     /* Network */
+    bool        useWifi;       /* Connect to WiFi? */
     String      ssid;
     String      passphrase;
     String      hostname;

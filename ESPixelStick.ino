@@ -12,16 +12,28 @@ const int forceAccessPointPin = D5;   // Connect to ground to force access point
 
 // State.
 String deviceName = "Default";
+int    millisOn = 2000;
+int    millisOff = 2000;
+bool   blinking = true;
 
 void led_on_request(AsyncWebServerRequest * request)
 {
   digitalWrite(LED_BUILTIN, LOW);
+  blinking = false;
   request->send(200, "text/plain", "LED is ON!");
 }
 
 void led_off_request(AsyncWebServerRequest * request)
 {
   digitalWrite(LED_BUILTIN, HIGH);
+  blinking = false;
+  request->send(200, "text/plain", "LED is OFF!");
+}
+
+void led_blink_request(AsyncWebServerRequest * request)
+{
+  digitalWrite(LED_BUILTIN, HIGH);
+  blinking = false;
   request->send(200, "text/plain", "LED is OFF!");
 }
 
@@ -84,16 +96,16 @@ void updateStatus(const connection_status_t & connectionStatus)
   display.print(" ");
   display.println(statusText);
 
-  display.print("SSID:  ");
+  display.print("SSID: ");
   display.println(connectionStatus.ssid);
 
   if (connectionStatus.status == CONNSTAT_CONNECTED || connectionStatus.status == CONNSTAT_LOCALAP) {
-    display.print("IP:  ");
+    display.print("IP: ");
     display.println(connectionStatus.ourLocalIP);
   }
 
   if (connectionStatus.status == CONNSTAT_CONNECTED) {
-    display.print("Signal:  ");
+    display.setCursor(114, 8);
     display.println(connectionStatus.signalStrength);
   }
 
@@ -104,16 +116,25 @@ void saveState(const JsonObject & json)
 {
   JsonObject device = json.createNestedObject("device");
   device["id"] = deviceName.c_str();
+  device["millisOn"] = millisOn;
+  device["millisOff"] = millisOff;
 }
 
 void loadState(const JsonObject & json)
 {
   if (json.containsKey("device")) {
     deviceName = json["device"]["id"].as<String>();
+    millisOn = json["device"]["millisOn"].as<int>();
+    millisOff = json["device"]["millisOff"].as<int>();
   }
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   framework_loop();
+
+  digitalWrite(LED_BUILTIN, LOW);
+  delay(millisOn);
+  digitalWrite(LED_BUILTIN, HIGH);
+  delay(millisOff);
 }
