@@ -10,6 +10,8 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 const int forceAccessPointPin = D5;   // Connect to ground to force access point.
 
+#define RELAY_PIN D6
+#define TRIGGER_PIN D4
 // State.
 String deviceName = "Default";
 int    millisOn = 2000;
@@ -21,29 +23,30 @@ bool   startupRequestAP = false;
 
 void led_on_request(AsyncWebServerRequest * request)
 {
-  digitalWrite(LED_BUILTIN, LOW);
+  digitalWrite(RELAY_PIN, LOW);
   blinking = false;
-  request->send(200, "text/plain", "LED is ON!");
+  request->send(200, "text/plain", "Relay is ON!");
 }
 
 void led_off_request(AsyncWebServerRequest * request)
 {
-  digitalWrite(LED_BUILTIN, HIGH);
+  digitalWrite(RELAY_PIN, HIGH);
   blinking = false;
-  request->send(200, "text/plain", "LED is OFF!");
+  request->send(200, "text/plain", "Relay is OFF!");
 }
 
 void led_blink_request(AsyncWebServerRequest * request)
 {
-  digitalWrite(LED_BUILTIN, HIGH);
-  blinking = false;
-  request->send(200, "text/plain", "LED is OFF!");
+  blinking = true;
+  request->send(200, "text/plain", "Relay is blinking!");
 }
 
 void setup() {
   pinMode(forceAccessPointPin, INPUT_PULLUP);
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH);
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, HIGH);
+
+  pinMode(TRIGGER_PIN, INPUT_PULLUP);
 
   // Initialise OLED display.
   Wire.begin(4, 0);           // set I2C pins [SDA = GPIO4 (D2), SCL = GPIO0 (D3)], default clock is 100kHz
@@ -63,11 +66,12 @@ void setup() {
   startupRequestAP = (digitalRead(forceAccessPointPin) == LOW);
   AsyncWebServer * webServer = framework_setup(startupRequestAP);
 
-  // Set up request handlers on the web interface. 
+  // Set up request handlers on the web interface.
   // See https://github.com/me-no-dev/ESPAsyncWebServer
   if (webServer) {
-    webServer->on("/ledon", HTTP_GET, led_on_request);
-    webServer->on("/ledoff", HTTP_GET, led_off_request);
+    webServer->on("/on", HTTP_GET, led_on_request);
+    webServer->on("/off", HTTP_GET, led_off_request);
+    webServer->on("/blink", HTTP_GET, led_blink_request);
   }
 }
 
@@ -100,8 +104,10 @@ void updateStatus(const connection_status_t & connectionStatus)
   display.print(" ");
   display.println(statusText);
 
-  display.print("SSID: ");
-  display.println(connectionStatus.ssid);
+  if (connectionStatus.status != CONNSTAT_NONE) {
+    display.print("SSID: ");
+    display.println(connectionStatus.ssid);
+  }
 
   if (connectionStatus.status == CONNSTAT_CONNECTED || connectionStatus.status == CONNSTAT_LOCALAP) {
     display.print("IP: ");
@@ -137,12 +143,20 @@ void loop() {
   // put your main code here, to run repeatedly:
   framework_loop();
 
-  digitalWrite(LED_BUILTIN, LOW);
-  delay(millisOn);
-  digitalWrite(LED_BUILTIN, HIGH);
-  delay(millisOff);
-
-  // If the AP switch is closed, but wasn't closed at startup, restart to 
+  if (blinking) {
+    Serial.print("Trigger: ");
+    if (digitalRead(TRIGGER_PIN) == LOW) {
+      Serial.println("TRIGGERED");
+    }
+    else {
+      Serial.println("NONE");
+    }
+    digitalWrite(RELAY_PIN, LOW);
+    delay(millisOn);
+    digitalWrite(RELAY_PIN, HIGH);
+    delay(millisOff);
+  }
+  // If the AP switch is closed, but wasn't closed at startup, restart to
   // enter AP mode.
   if (!startupRequestAP && digitalRead(forceAccessPointPin) == LOW) {
     ESP.restart();

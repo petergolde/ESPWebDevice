@@ -5,7 +5,11 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/../libraries/**",
-                "${workspaceFolder}/../hardware/esp8266com/esp8266/**"
+                "${workspaceFolder}/../hardware/esp8266com/esp8266/**",
+                "C:\\Users\\peter\\AppData\\Local\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\2.7.4\\**",
+                "C:\\Program Files (x86)\\Arduino\\libraries\\**",
+                "C:\\Users\\peter\\Documents\\Arduino\\libraries\\**",
+                "C:\\Users\\peter\\AppData\\Local\\Arduino15\\packages\\esp8266\\tools\\**"
             ],
             "defines": [
                 "_DEBUG",
