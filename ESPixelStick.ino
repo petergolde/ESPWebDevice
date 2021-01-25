@@ -8,10 +8,11 @@
 #define OLED_RESET   -1    // define SSD1306 OLED (-1 means none)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-const int forceAccessPointPin = D8;   // Connect to ground to force access point.
-
+const int forceAccessPointPin = D5;   // Connect to ground to force access point.
 #define RELAY_PIN D6
-#define PIR_TRIGGER_PIN D4
+#define PIR_TRIGGER_PIN D1
+#define BEAM_TRIGGER_PIN D7
+
 // State.
 String deviceName = "Default";
 int    millisOn = 2000;
@@ -44,9 +45,10 @@ void led_blink_request(AsyncWebServerRequest * request)
 void setup() {
   pinMode(forceAccessPointPin, INPUT_PULLUP);
   pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, HIGH);
+  digitalWrite(RELAY_PIN, LOW);
 
   pinMode(PIR_TRIGGER_PIN, INPUT_PULLUP);
+  pinMode(BEAM_TRIGGER_PIN, INPUT_PULLUP);
 
   // Initialise OLED display.
   Wire.begin(4, 0);           // set I2C pins [SDA = GPIO4 (D2), SCL = GPIO0 (D3)], default clock is 100kHz
@@ -63,7 +65,7 @@ void setup() {
   display.display();
 
   // Check pin to force access point.
-  startupRequestAP = (digitalRead(forceAccessPointPin) == LOW);
+  startupRequestAP = (digitalRead(forceAccessPointPin) == LOW); 
   AsyncWebServer * webServer = framework_setup(startupRequestAP);
 
   // Set up request handlers on the web interface.
@@ -143,21 +145,23 @@ void loop() {
   // put your main code here, to run repeatedly:
   framework_loop();
 
-  if (digitalRead(PIR_TRIGGER_PIN) == LOW) {
-    digitalWrite(RELAY_PIN, LOW);
-    delay(millisOn);
+  if (digitalRead(BEAM_TRIGGER_PIN) == LOW) {
     digitalWrite(RELAY_PIN, HIGH);
+    delay(millisOn);
+    digitalWrite(RELAY_PIN, LOW);
+    delay(millisOff);
   }
+  
   
   // If the AP switch is closed, but wasn't closed at startup, restart to
   // enter AP mode.
   if (!startupRequestAP && digitalRead(forceAccessPointPin) == LOW) {
     ESP.restart();
   }
-/*
+
   // If the AP switch is open, but was closed at startup, restart to exit
   // AP mode
   if (startupRequestAP && digitalRead(forceAccessPointPin) == HIGH) {
     ESP.restart();
-  }*/
+  }
 }

@@ -132,16 +132,10 @@ AsyncWebServer * framework_setup(bool forceAccessPoint) {
 
   // Setup serial log port
   LOG_PORT.begin(115200);
-  LOG_PORT.println();
-  LOG_PORT.println();
   delay(10);
+  LOG_PORT.println();
+  LOG_PORT.println();
 
-  if (forceAccessPoint) {
-    LOG_PORT.println("Forced access point switch is ON.");
-  }
-  else {
-    LOG_PORT.println("Forced access point switch is OFF.");
-  }
 
 #if defined(DEBUG)
   ets_install_putc1((void *) &_u0_putc);
@@ -177,6 +171,7 @@ AsyncWebServer * framework_setup(bool forceAccessPoint) {
     Dir dir = SPIFFS.openDir("/");
     while (dir.next()) {
       LOG_PORT.print(dir.fileName());
+      LOG_PORT.print("  --  ");
       File f = dir.openFile("r");
       LOG_PORT.println(f.size());
     }
@@ -196,6 +191,13 @@ AsyncWebServer * framework_setup(bool forceAccessPoint) {
 
   connectionStatus.status = CONNSTAT_NONE;
 
+  if (forceAccessPoint) {
+    LOG_PORT.println("Forced access point switch is ON.");
+  }
+  else {
+    LOG_PORT.println("Forced access point switch is OFF.");
+  }
+
   // Setup WiFi Handlers
   wifiConnectHandler = WiFi.onStationModeGotIP(onWifiConnect);
 
@@ -207,7 +209,7 @@ AsyncWebServer * framework_setup(bool forceAccessPoint) {
     if (!forceAccessPoint && config.useWifi) {
       initWifi();
     }
-  
+
     // If we fail, go SoftAP or reboot
     if (WiFi.status() != WL_CONNECTED) {
       if (forceAccessPoint || (config.useWifi && config.ap_fallback)) {
@@ -224,15 +226,15 @@ AsyncWebServer * framework_setup(bool forceAccessPoint) {
         ESP.restart();
       }
     }
-  
+
     wifiDisconnectHandler = WiFi.onStationModeDisconnected(onWiFiDisconnect);
-  
+
     LOG_PORT.print("IP : ");
     LOG_PORT.println(connectionStatus.ourLocalIP);
     LOG_PORT.print("Subnet mask : ");
     LOG_PORT.println(connectionStatus.ourSubnetMask);
   }
-  
+
   // Configure and start the web server
   if (connectionStatus.status == CONNSTAT_CONNECTED || connectionStatus.status == CONNSTAT_LOCALAP) {
     initWeb();
