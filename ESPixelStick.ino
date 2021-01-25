@@ -8,10 +8,10 @@
 #define OLED_RESET   -1    // define SSD1306 OLED (-1 means none)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-const int forceAccessPointPin = D5;   // Connect to ground to force access point.
+const int forceAccessPointPin = D8;   // Connect to ground to force access point.
 
 #define RELAY_PIN D6
-#define TRIGGER_PIN D4
+#define PIR_TRIGGER_PIN D4
 // State.
 String deviceName = "Default";
 int    millisOn = 2000;
@@ -46,7 +46,7 @@ void setup() {
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, HIGH);
 
-  pinMode(TRIGGER_PIN, INPUT_PULLUP);
+  pinMode(PIR_TRIGGER_PIN, INPUT_PULLUP);
 
   // Initialise OLED display.
   Wire.begin(4, 0);           // set I2C pins [SDA = GPIO4 (D2), SCL = GPIO0 (D3)], default clock is 100kHz
@@ -143,22 +143,21 @@ void loop() {
   // put your main code here, to run repeatedly:
   framework_loop();
 
-  if (blinking) {
-    Serial.print("Trigger: ");
-    if (digitalRead(TRIGGER_PIN) == LOW) {
-      Serial.println("TRIGGERED");
-    }
-    else {
-      Serial.println("NONE");
-    }
+  if (digitalRead(PIR_TRIGGER_PIN) == LOW) {
     digitalWrite(RELAY_PIN, LOW);
     delay(millisOn);
     digitalWrite(RELAY_PIN, HIGH);
-    delay(millisOff);
   }
+  
   // If the AP switch is closed, but wasn't closed at startup, restart to
   // enter AP mode.
   if (!startupRequestAP && digitalRead(forceAccessPointPin) == LOW) {
     ESP.restart();
   }
+/*
+  // If the AP switch is open, but was closed at startup, restart to exit
+  // AP mode
+  if (startupRequestAP && digitalRead(forceAccessPointPin) == HIGH) {
+    ESP.restart();
+  }*/
 }

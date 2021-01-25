@@ -132,7 +132,16 @@ AsyncWebServer * framework_setup(bool forceAccessPoint) {
 
   // Setup serial log port
   LOG_PORT.begin(115200);
+  LOG_PORT.println();
+  LOG_PORT.println();
   delay(10);
+
+  if (forceAccessPoint) {
+    LOG_PORT.println("Forced access point switch is ON.");
+  }
+  else {
+    LOG_PORT.println("Forced access point switch is OFF.");
+  }
 
 #if defined(DEBUG)
   ets_install_putc1((void *) &_u0_putc);
